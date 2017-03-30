@@ -86,6 +86,37 @@ class EventsService
             @liveAnnouncementService.show(data.title, data.desc)
             @rootScope.$digest()
 
+    liveNotifications: ->
+        token = @auth.getToken()
+        token = token.replace(/:.*/, "")
+        userId = @.auth.userData.get('id')
+        hash = hex_sha1(token+userId)
+
+        subscribe = () =>
+            @.subscribe null, "live-notifications.#{userId}.#{hash}", (data) =>
+                notification = new Notification(data.title, {
+                    icon: "/#{window._version}/images/favicon.png",
+                    body: data.body
+                })
+                notification.onshow = () =>
+                    if data.timeout and data.timeout > 0
+                        setTimeout =>
+                            notification.close()
+                        ,
+                            data.timeout
+
+                if data.url
+                    notification.onclick = () =>
+                        window.open data.url
+        if !Notification
+            console.log("This browser does not support desktop notification")
+        else if Notification.permission == "granted"
+            subscribe()
+        else if Notification.permission != 'denied'
+            Notification.requestPermission (permission) =>
+              if (permission == "granted")
+                  subscribe()
+
     ###########################################
     # Heartbeat (Ping - Pong)
     ###########################################
@@ -215,6 +246,7 @@ class EventsService
 
         @.sendMessage(message)
         @.notifications()
+        @.liveNotifications()
 
     onMessage: (event) ->
         @.log.debug "WebSocket message received: #{event.data}"
